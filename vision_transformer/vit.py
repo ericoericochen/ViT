@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import math
+from einops import rearrange
 
 
 # https://github.com/openai/improved-diffusion/blob/main/improved_diffusion/nn.py
@@ -35,12 +36,62 @@ class TransformerEncoder(nn.Module):
     pass
 
 
+def scaled_dot_product_attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
+    """
+    Params:
+        - q: tensor of shape (B, L, d_q)
+        - k: tensor of shape (B, L, d_k)
+        - v: tensor of shape (B, L, d_v)
+
+    All query and key should have the same dimension d_q=d_k.
+    """
+    d_k = k.shape[-1]
+
+    k_t = k.transpose(-2, -1)  # (B, D, L)
+    attention = nn.functional.softmax((q @ k_t) / (d_k**0.5), dim=-1) @ v  # (B, L, D)
+
+    return attention
+
+
 class MultiHeadAttention(nn.Module):
-    pass
+    def __init__(self, dim: int, heads: int = 8, dim_head: int = 64):
+        super().__init__()
+        self.dim = dim
+        self.heads = heads
+        self.dim_head = dim_head
 
+        inner_dim = heads * dim_head
+        self.to_qkv = nn.Linear(dim, inner_dim * 3)
+        self.out = nn.Linear(inner_dim, dim)
 
-class Attention(nn.Module):
-    pass
+    def forward(self, x: torch.Tensor):
+        B, L, D = x.shape
+
+        assert (
+            D == self.dim
+        ), f"Input dimension {D} does not match expected dimension {self.dim}"
+
+        qkv = self.to_qkv(x)  # (B, L, dim) -> (B, L, 3 * heads * dim_head)
+        qkv = qkv.reshape(
+            (B, L, 3, self.heads, self.dim_head)
+        )  # (B, L, 3 * heads * dim_head) -> (B, L, 2, heads, dim_head)
+
+        qkv = rearrange(
+            qkv, "b l v h d -> (b h) v l d"
+        )  # (B, L, 3, heads, dim_head) -> (B, 3, heads, L, dim_head)
+
+        # split into q k v vectors
+        q, k, v = qkv.unbind(dim=1)  # (B x heads, L, dim_head)
+
+        x = scaled_dot_product_attention(q, k, v)  # (B x heads, L, dim_head)
+        x = rearrange(
+            x, "(b h) l d -> b l (d h)", b=B, h=self.heads
+        )  # (B x heads, L, dim_head) -> (B, L dim_head x heads)
+
+        # linear projection to dim
+        x = self.out(x)
+
+        return x
 
 
 class MLP(nn.Module):

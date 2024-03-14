@@ -12,6 +12,7 @@ torchvision = "^0.17.1"
 ipykernel = "^6.29.3"
 lightning = "^2.2.1"
 tensorboard = "^2.16.2"
+einops = "^0.7.0"
 
 
 [build-system]
