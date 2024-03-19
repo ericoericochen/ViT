@@ -29,11 +29,65 @@ def timestep_embedding(timesteps, dim, max_period=10000):
 
 
 class Transformer(nn.Module):
-    pass
+    def __init__(
+        self,
+        dim: int,
+        layers: int,
+        heads: int = 8,
+        dim_head: int = 64,
+        mlp_dim: int = 128,
+    ):
+        super().__init__()
+
+        self.dim = dim
+        self.layers = layers
+        self.heads = heads
+        self.dim_head = dim_head
+        self.mlp_dim = mlp_dim
+
+        self.encoders = nn.ModuleList(
+            [
+                TransformerEncoder(
+                    dim=dim, heads=heads, dim_head=dim_head, mlp_dim=mlp_dim
+                )
+                for _ in range(layers)
+            ]
+        )
+
+    def forward(self, x: torch.Tensor):
+        for encoder in self.encoders:
+            x = encoder(x)
+
+        return x
 
 
 class TransformerEncoder(nn.Module):
-    pass
+    def __init__(
+        self, dim: int, heads: int = 8, dim_head: int = 64, mlp_dim: int = 128
+    ):
+        super().__init__()
+
+        self.dim = dim
+        self.heads = heads
+        self.dim_head = dim_head
+        self.mlp_dim = mlp_dim
+
+        self.mha = MultiHeadAttention(dim=dim, heads=heads, dim_head=dim_head)
+        self.layer_norm1 = nn.LayerNorm(dim)
+        self.layer_norm2 = nn.LayerNorm(dim)
+        self.mlp = MLP(dim=dim, mlp_dim=mlp_dim)
+
+    def forward(self, x: torch.Tensor):
+        """
+        Params:
+            - x: (B, L, D)
+        """
+        h = x
+
+        x = self.mha(self.layer_norm1(x)) + h
+        x = self.mlp(self.layer_norm1(x)) + h
+
+        return x
 
 
 def scaled_dot_product_attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
@@ -95,7 +149,16 @@ class MultiHeadAttention(nn.Module):
 
 
 class MLP(nn.Module):
-    pass
+    def __init__(self, dim: int, mlp_dim: int = 128):
+        super().__init__()
+        self.mlp = nn.Sequential(
+            nn.Linear(dim, mlp_dim),
+            nn.GELU(),
+            nn.Linear(mlp_dim, dim),
+        )
+
+    def forward(self, x: torch.Tensor):
+        return self.mlp(x)
 
 
 class ViT(nn.Module):
@@ -131,6 +194,18 @@ class ViT(nn.Module):
         positions = torch.arange(num_tokens)
         self.positional_embedding = timestep_embedding(positions, dim)
 
+        self.transformer = Transformer(
+            dim=dim, layers=layers, heads=heads, mlp_dim=mlp_dim
+        )
+
+        self.layernorm = nn.LayerNorm(dim)
+
+        self.mlp = nn.Sequential(
+            nn.Linear(dim, dim),
+            nn.Tanh(),
+            nn.Linear(dim, num_classes),
+        )
+
     def to_patch_embedding(self, x: torch.Tensor) -> torch.Tensor:
         """
         Params:
@@ -160,5 +235,15 @@ class ViT(nn.Module):
 
         # add positional embeddings to patch embeddings
         x = x + self.positional_embedding
+
+        # transformer
+        x = self.transformer(x)
+
+        # get the [CLS] token
+        cls = x[:, 1, :]
+        cls = self.layernorm(cls)
+
+        # get classification
+        x = self.mlp(cls)
 
         return x
