@@ -1,0 +1,10 @@
+{
+  "image_size": 32,
+  "channels": 3,
+  "patch_size": 4,
+  "dim": 32,
+  "layers": 4,
+  "heads": 2,
+  "mlp_dim": 64,
+  "num_classes": 10
+}

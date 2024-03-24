@@ -28,6 +28,23 @@ def timestep_embedding(timesteps, dim, max_period=10000):
     return embedding
 
 
+def scaled_dot_product_attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
+    """
+    Params:
+        - q: tensor of shape (B, L, d_q)
+        - k: tensor of shape (B, L, d_k)
+        - v: tensor of shape (B, L, d_v)
+
+    All query and key should have the same dimension d_q=d_k.
+    """
+    d_k = k.shape[-1]
+
+    k_t = k.transpose(-2, -1)  # (B, D, L)
+    attention = nn.functional.softmax((q @ k_t) / (d_k**0.5), dim=-1) @ v  # (B, L, D)
+
+    return attention
+
+
 class Transformer(nn.Module):
     def __init__(
         self,
@@ -88,23 +105,6 @@ class TransformerEncoder(nn.Module):
         x = self.mlp(self.layer_norm1(x)) + h
 
         return x
-
-
-def scaled_dot_product_attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
-    """
-    Params:
-        - q: tensor of shape (B, L, d_q)
-        - k: tensor of shape (B, L, d_k)
-        - v: tensor of shape (B, L, d_v)
-
-    All query and key should have the same dimension d_q=d_k.
-    """
-    d_k = k.shape[-1]
-
-    k_t = k.transpose(-2, -1)  # (B, D, L)
-    attention = nn.functional.softmax((q @ k_t) / (d_k**0.5), dim=-1) @ v  # (B, L, D)
-
-    return attention
 
 
 class MultiHeadAttention(nn.Module):
@@ -169,10 +169,9 @@ class ViT(nn.Module):
         num_classes: int,
         dim: int,
         layers: int,
+        channels: int = 3,
         heads: int = 6,
         mlp_dim: int = 128,
-        dropout: float = 0.1,
-        emb_dropout: float = 0.1,
     ):
         super().__init__()
         self.image_size = image_size
@@ -180,19 +179,23 @@ class ViT(nn.Module):
         self.num_classes = num_classes
         self.dim = dim
         self.layers = layers
+        self.channels = channels
         self.heads = heads
         self.mlp_dim = mlp_dim
-        self.dropout = dropout
-        self.emb_dropout = emb_dropout
 
         self.patch_embedding = nn.Conv2d(
-            in_channels=3, out_channels=dim, kernel_size=patch_size, stride=patch_size
+            in_channels=channels,
+            out_channels=dim,
+            kernel_size=patch_size,
+            stride=patch_size,
         )
         self.cls_embedding = nn.Parameter(torch.zeros(dim))
 
         num_tokens = (image_size**2) // (patch_size**2) + 1  # add 1 for the CLS token
         positions = torch.arange(num_tokens)
-        self.positional_embedding = timestep_embedding(positions, dim)
+        self.positional_embedding = nn.Parameter(
+            timestep_embedding(positions, dim), requires_grad=False
+        )
 
         self.transformer = Transformer(
             dim=dim, layers=layers, heads=heads, mlp_dim=mlp_dim
