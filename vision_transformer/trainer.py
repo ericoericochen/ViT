@@ -95,6 +95,7 @@ class Trainer:
         losses = []
         with tqdm(total=num_iters, position=0) as pbar:
             postfix = {
+                "epoch": 0,
                 "loss": 0.0,
                 "train_accuracy": 0.0,
                 "val_loss": "N/A",
@@ -102,6 +103,8 @@ class Trainer:
             }
 
             for epoch in range(self.epochs):
+                postfix["epoch"] = epoch
+
                 for X, Y in self.train_loader:
                     X = X.to(device)
                     Y = Y.to(device)
