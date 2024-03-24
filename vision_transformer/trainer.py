@@ -2,6 +2,8 @@ from .vit import ViT
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 import torch
+import os
+import json
 
 
 def get_device():
@@ -83,6 +85,12 @@ class Trainer:
     def train(self):
         print("training...")
 
+        if self.save_dir:
+            os.makedirs(self.save_dir, exist_ok=True)
+
+            with open(os.path.join(self.save_dir, "model_config.json"), "w") as f:
+                json.dump(self.model.config, f, indent=4)
+
         num_iters = self.epochs * len(self.train_loader)
         device = get_device()
         criterion = torch.nn.CrossEntropyLoss()
@@ -138,5 +146,14 @@ class Trainer:
 
                     postfix["val_accuracy"] = val_accuracy
                     postfix["val_loss"] = val_loss
+
+                if (epoch + 1) % self.checkpoint_epoch == 0 and self.save_dir:
+                    torch.save(
+                        model.state_dict(),
+                        os.path.join(self.save_dir, f"model_{epoch+1}.pt"),
+                    )
+
+        if self.save_dir:
+            torch.save(model.state_dict(), os.path.join(self.save_dir, "model.pt"))
 
         return {"losses": losses}

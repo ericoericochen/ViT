@@ -3,6 +3,7 @@ from torchvision.datasets import CIFAR10
 from torch.utils.data import DataLoader
 import json
 import torch
+import torchvision.transforms.v2 as v2
 
 import sys
 
@@ -28,8 +29,12 @@ def parse_args():
 def main(args):
     torch.manual_seed(args.seed)
 
-    train_dataset = CIFAR10(root="../data", train=True, download=True)
-    val_dataset = CIFAR10(root="../data", train=False, download=True)
+    train_dataset = CIFAR10(
+        root="../data", train=True, download=True, transform=v2.ToTensor()
+    )
+    val_dataset = CIFAR10(
+        root="../data", train=False, download=True, transform=v2.ToTensor()
+    )
 
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size)
@@ -46,6 +51,7 @@ def main(args):
         epochs=args.epochs,
         checkpoint_epoch=args.checkpoint_epoch,
         save_dir=args.save_dir,
+        show_eval_progress=True,
     )
 
     trainer.train()

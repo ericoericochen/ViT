@@ -209,6 +209,19 @@ class ViT(nn.Module):
             nn.Linear(dim, num_classes),
         )
 
+    @property
+    def config(self):
+        return {
+            "image_size": self.image_size,
+            "patch_size": self.patch_size,
+            "num_classes": self.num_classes,
+            "dim": self.dim,
+            "layers": self.layers,
+            "channels": self.channels,
+            "heads": self.heads,
+            "mlp_dim": self.mlp_dim,
+        }
+
     def to_patch_embedding(self, x: torch.Tensor) -> torch.Tensor:
         """
         Params:
