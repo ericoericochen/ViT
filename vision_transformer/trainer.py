@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader
 import torch
 import os
 import json
+import matplotlib.pyplot as plt
 
 
 def get_device():
@@ -155,5 +156,9 @@ class Trainer:
 
         if self.save_dir:
             torch.save(model.state_dict(), os.path.join(self.save_dir, "model.pt"))
+
+        plt.title("Log Loss")
+        plt.xlabel("Iters")
+        plt.semilogy(losses)
 
         return {"losses": losses}
